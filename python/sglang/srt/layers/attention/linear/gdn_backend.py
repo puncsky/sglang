@@ -189,26 +189,29 @@ elif is_cpu():
 
 
 def flashinfer_gdn_prefill_default(model_runner: ModelRunner) -> Optional[str]:
-    """FlashInfer for the narrow SM90/SM100 GDN prefill domains we validated, else None."""
+    """FlashInfer for the narrow SM90/SM100/SM12x GDN prefill domains we validated, else None."""
     sm_major = torch.cuda.get_device_capability()[0] if is_cuda() else 0
     if (
         get_exec().mamba.linear_attn_prefill_backend is not None
         or get_exec().mamba.linear_attn_backend != "triton"
         or get_exec().deterministic.enable_deterministic_inference
         or get_memory().enable_page_major_kv_layout
-        or sm_major not in (9, 10)
+        or sm_major not in (9, 10, 12)
     ):
         return None
 
     # SM100 runs the CUDA>=13 CuTe-DSL chunk kernel on a bf16 state pool;
     # SM90 runs the fused Hopper kernel on an fp32 state pool and tolerates
-    # larger chunks. Everything outside these validated domains keeps Triton.
+    # larger chunks. SM12x runs FlashInfer's SM120 kernel, which takes an fp32
+    # state like SM90's and needs CUDA>=13 like SM100's; 8192-token chunks are
+    # the largest validated. Everything outside these validated domains keeps
+    # Triton.
     cuda_version = torch.version.cuda
-    if sm_major == 10:
+    if sm_major in (10, 12):
         if cuda_version is None or int(cuda_version.split(".", 1)[0]) < 13:
             return None
         max_chunk = 8192
-        expected_state_dtype = torch.bfloat16
+        expected_state_dtype = torch.bfloat16 if sm_major == 10 else torch.float32
     else:
         max_chunk = 32768
         expected_state_dtype = torch.float32
