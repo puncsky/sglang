@@ -31,7 +31,7 @@ register_cuda_ci(est_time=14, stage="base-b", runner_config="1-gpu-large")
 _cuda_major = int(torch.version.cuda.split(".")[0]) if torch.version.cuda else 0
 _sm_major = torch.cuda.get_device_capability()[0] if torch.cuda.is_available() else 0
 _supports_flashinfer_linear_gdn = _sm_major == 9 or (
-    _sm_major == 10 and _cuda_major >= 13
+    _sm_major in (10, 12) and _cuda_major >= 13
 )
 
 
@@ -330,10 +330,10 @@ class TestFlashInferGDNBackendCorrectness(CustomTestCase):
     torch.cuda.is_available()
     and is_flashinfer_available()
     and _supports_flashinfer_linear_gdn,
-    "FlashInfer linear GDN requires SM90 or SM100/SM103 with CUDA 13+",
+    "FlashInfer linear GDN requires SM90, or SM100/SM103/SM12x with CUDA 13+",
 )
 class TestFlashInferLinearGDNBackendCorrectness(CustomTestCase):
-    # FlashInfer's DSL prefill kernels require head size 128 on SM90 and SM100.
+    # FlashInfer's DSL prefill kernels require head size 128 on SM90, SM100 and SM12x.
     HEAD_DIM = 128
     CHECKPOINT_CASE = GDNAttentionCase(
         name="flashinfer_gdn_prefill_state_checkpoints",
